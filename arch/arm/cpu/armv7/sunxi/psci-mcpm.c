@@ -14,11 +14,18 @@
 #include <asm/arch/cpucfg_sun9i.h>
 #include <asm/arch/prcm_sun9i.h>
 #include <asm/armv7.h>
+#include <asm/gic.h>
 #include <asm/io.h>
 #include <asm/psci.h>
 #include <asm/secure.h>
+#include <asm/system.h>
 
 #include <linux/bitops.h>
+
+#define __irq		__attribute__ ((interrupt ("IRQ")))
+
+#define	GICD_BASE	(SUNXI_GIC400_BASE + GIC_DIST_OFFSET)
+#define	GICC_BASE	(SUNXI_GIC400_BASE + GIC_CPU_OFFSET_A15)
 
 /*
  * NOTE dense CPU IDs (0~3 for first cluster of 4 cores, 4~7 for the
@@ -145,6 +152,25 @@ static void __secure sunxi_cpu_set_power(int cpu, bool on)
 				&prcm->cpu_pwroff[cluster], on, core);
 }
 
+void __secure sunxi_cpu_power_off(u32 cpuid)
+{
+	struct sunxi_cpucfg_reg *cpucfg =
+		(struct sunxi_cpucfg_reg *)SUNXI_CPUCFG_BASE;
+	u32 cluster = (cpuid >> 2) & 0x1;
+	u32 core = cpuid & 0x3;
+
+	/* Wait for the core to enter WFI */
+	while (1) {
+		if (readl(&cpucfg->cluster_status[cluster]) &
+		    CPUCFG_CX_STATUS_STANDBYWFI(core))
+			break;
+		__udelay_sec(1000);
+	}
+
+	/* Power down CPU */
+	sunxi_cpu_set_power(cpuid, false);
+}
+
 static u32 __secure cp15_read_scr(void)
 {
 	u32 scr;
@@ -158,6 +184,42 @@ static void __secure cp15_write_scr(u32 scr)
 {
 	asm volatile ("mcr p15, 0, %0, c1, c1, 0" : : "r" (scr));
 	isb();
+}
+
+/*
+ * Although this is an FIQ handler, the FIQ is processed in monitor mode,
+ * which means there's no FIQ banked registers. This is the same as IRQ
+ * mode, so use the IRQ attribute to ask the compiler to handler entry
+ * and return.
+ */
+void __secure __irq psci_fiq_enter(void)
+{
+	u32 scr, reg, cpu;
+
+	/* Switch to secure mode */
+	scr = cp15_read_scr();
+	cp15_write_scr(scr & ~BIT(0));
+
+	/* Validate reason based on IAR and acknowledge */
+	reg = readl(GICC_BASE + GICC_IAR);
+
+	/* Skip spurious interrupts 1022 and 1023 */
+	if (reg == 1023 || reg == 1022)
+		goto out;
+
+	/* End of interrupt */
+	writel(reg, GICC_BASE + GICC_EOIR);
+	dsb();
+
+	/* Get CPU number */
+	cpu = (reg >> 10) & 0x7;
+
+	/* Power off the CPU */
+	sunxi_cpu_power_off(cpu);
+
+out:
+	/* Restore security level */
+	cp15_write_scr(scr);
 }
 
 int __secure psci_cpu_on(u32 __always_unused unused, u32 mpidr, u32 pc)
@@ -224,11 +286,37 @@ int __secure psci_cpu_on(u32 __always_unused unused, u32 mpidr, u32 pc)
 	return ARM_PSCI_RET_SUCCESS;
 }
 
+void __secure psci_cpu_off(void)
+{
+	psci_cpu_off_common();
+
+	/* Ask CPU0 via SGI15 to pull the rug... */
+	writel(BIT(16) | 15, GICD_BASE + GICD_SGIR);
+	dsb();
+
+	/* Wait to be turned off */
+	while (1)
+		wfi();
+}
+
 void __secure psci_arch_init(void)
 {
 	u32 reg;
 
+	/* SGI15 as Group-0 */
+	clrbits_le32(GICD_BASE + GICD_IGROUPRn, BIT(15));
+
+	/* Set SGI15 priority to 0 */
+	writeb(0, GICD_BASE + GICD_IPRIORITYRn + 15);
+
+	/* Be cool with non-secure */
+	writel(0xff, GICC_BASE + GICC_PMR);
+
+	/* Switch FIQEn on */
+	setbits_le32(GICC_BASE + GICC_CTLR, BIT(3));
+
 	reg = cp15_read_scr();
+	reg |= BIT(2);  /* Enable FIQ in monitor mode */
 	reg &= ~BIT(0); /* Secure mode */
 	cp15_write_scr(reg);
 }
