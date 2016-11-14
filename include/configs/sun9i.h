@@ -13,6 +13,9 @@
  * A80 specific configuration
  */
 
+/* GIC base address in CBAR is incorrect */
+#define CONFIG_ARM_GIC_BASE_ADDRESS	SUNXI_GIC400_BASE
+
 /* First 4 kiB is reserved for CPU0 hotplug flags */
 #define CONFIG_ARMV7_SECURE_BASE	(SUNXI_SRAM_B_BASE + 4 * 1024)
 #define CONFIG_ARMV7_SECURE_MAX_SIZE	(252 * 1024) /* 252 KB */
