@@ -101,6 +101,18 @@ static void __secure __udelay_sec(unsigned long us)
 	isb();
 }
 
+static void __secure dbg_uart0_putchar(char c)
+{
+	writeb(c, SUNXI_UART0_BASE);
+}
+
+static void __secure dbg_uart0_print(const char *s)
+{
+	while (*s)
+		dbg_uart0_putchar(*s++);
+	__udelay_sec(20);
+}
+
 static void __secure clamp_release(u32 *clamp)
 {
 	writel(0xff, clamp);
@@ -196,6 +208,9 @@ void __secure __irq psci_fiq_enter(void)
 {
 	u32 scr, reg, cpu;
 
+	dbg_uart0_print(__func__);
+	dbg_uart0_print("\r\n");
+
 	/* Switch to secure mode */
 	scr = cp15_read_scr();
 	cp15_write_scr(scr & ~BIT(0));
@@ -214,9 +229,14 @@ void __secure __irq psci_fiq_enter(void)
 	/* Get CPU number */
 	cpu = (reg >> 10) & 0x7;
 
+	dbg_uart0_print("power off ");
+	dbg_uart0_putchar('0' + cpu);
+	dbg_uart0_print("\r\n");
+
 	/* Power off the CPU */
 	sunxi_cpu_power_off(cpu);
 
+	dbg_uart0_print("exit\r\n");
 out:
 	/* Restore security level */
 	cp15_write_scr(scr);
@@ -232,27 +252,44 @@ int __secure psci_cpu_on(u32 __always_unused unused, u32 mpidr, u32 pc)
 	u32 cpu = mpidr & 0x3;
 	u32 cpuid = cpu | (cluster << 2);
 
+	dbg_uart0_print("cpu_on: ");
+	dbg_uart0_putchar('0' + cluster);
+	dbg_uart0_putchar('0' + cpu);
+	dbg_uart0_print("\r\n");
+
 	/* TODO We don't support multi-cluster yet */
 	if (cluster > 0)
 		return ARM_PSCI_RET_INVAL;
 
+	dbg_uart0_putchar('0');
+
 	/* store target PC */
 	psci_save_target_pc(cpuid, pc);
+
+	dbg_uart0_putchar('1');
 
 	/* Set secondary core power on PC */
 	writel((u32)&psci_cpu_entry, &prcm->cpu_soft_entry);
 
+	dbg_uart0_putchar('2');
+
 	/* Assert power-on reset on target CPU */
 	clrbits_le32(&prcm->cpu_rst[cluster], BIT(cpu));
+
+	dbg_uart0_putchar('3');
 
 	/* Cortex-A7: hold L1 cache reset disable signal low */
 	if (cluster == 0)
 		clrbits_le32(&cpucfg->cluster[cluster].ctrl0,
 			     CPUCFG_CX_CTRL0_L1_RST_DISABLE(cpu));
 
+	dbg_uart0_putchar('4');
+
 	/* Lock CPU (Disable external debug access) */
 	clrbits_le32(&cpucfg->cluster_reset[cluster],
 		     CPUCFG_CX_RST_DBG(cpu));
+
+	dbg_uart0_putchar('5');
 
 	/* Cortex-A7: Assert ETM reset */
 	if (cluster == 0)
@@ -264,24 +301,38 @@ int __secure psci_cpu_on(u32 __always_unused unused, u32 mpidr, u32 pc)
 	 * to ARM manuals, asserting power-on reset is sufficient.
 	 */
 
+	dbg_uart0_putchar('6');
+
 	/* Power up target CPU */
 	sunxi_cpu_set_power(cpu, true);
+
+	dbg_uart0_putchar('7');
 
 	/* De-assert power-on reset on target CPU */
 	setbits_le32(&prcm->cpu_rst[cluster], BIT(cpu));
 
+	dbg_uart0_putchar('8');
+
+	__udelay_sec(100);
+
 	/* De-assert core reset on target CPU */
 	setbits_le32(&cpucfg->cluster_reset[cluster],
 		     CPUCFG_CX_RST_CORE(cpu));
+
+	dbg_uart0_putchar('9');
 
 	/* Cortex-A7: De-assert ETM reset */
 	if (cluster == 0)
 		setbits_le32(&cpucfg->cluster_reset[cluster],
 			     CPUCFG_CX_RST_ETM(cpu));
 
+	dbg_uart0_putchar('A');
+
 	/* Unlock CPU (Disable external debug access) */
 	setbits_le32(&cpucfg->cluster_reset[cluster],
 		     CPUCFG_CX_RST_DBG(cpu));
+
+	dbg_uart0_putchar('B');
 
 	return ARM_PSCI_RET_SUCCESS;
 }
@@ -303,6 +354,9 @@ void __secure psci_arch_init(void)
 {
 	u32 reg;
 
+	dbg_uart0_print(__func__);
+	dbg_uart0_print("\r\n");
+
 	/* SGI15 as Group-0 */
 	clrbits_le32(GICD_BASE + GICD_IGROUPRn, BIT(15));
 
@@ -319,4 +373,7 @@ void __secure psci_arch_init(void)
 	reg |= BIT(2);  /* Enable FIQ in monitor mode */
 	reg &= ~BIT(0); /* Secure mode */
 	cp15_write_scr(reg);
+
+	dbg_uart0_print(__func__);
+	dbg_uart0_print(" return\r\n");
 }

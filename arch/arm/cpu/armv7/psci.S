@@ -154,6 +154,21 @@ _psci_table:
 _smc_psci:
 	push	{r4-r7,lr}
 
+	movw	r5, #(SUNXI_UART0_BASE & 0xffff)
+	movt	r5, #((SUNXI_UART0_BASE >> 16) & 0xffff)
+	mov	r4, #'P'
+	str	r4, [r5]
+	mov	r4, #'S'
+	str	r4, [r5]
+	mov	r4, #'C'
+	str	r4, [r5]
+	mov	r4, #'I'
+	str	r4, [r5]
+	mov	r4, #'\r'
+	str	r4, [r5]
+	mov	r4, #'\n'
+	str	r4, [r5]
+
 	@ Switch to secure
 	mrc	p15, 0, r7, c1, c1, 0
 	bic	r4, r7, #1
@@ -174,6 +189,23 @@ _smc_psci:
 
 	@ Switch back to non-secure
 2:	mcr	p15, 0, r7, c1, c1, 0
+
+	movw	r5, #(SUNXI_UART0_BASE & 0xffff)
+	movt	r5, #((SUNXI_UART0_BASE >> 16) & 0xffff)
+	mov	r4, #'P'
+	str	r4, [r5]
+	mov	r4, #'S'
+	str	r4, [r5]
+	mov	r4, #'C'
+	str	r4, [r5]
+	mov	r4, #'I'
+	str	r4, [r5]
+	mov	r4, #'R'
+	str	r4, [r5]
+	mov	r4, #'\r'
+	str	r4, [r5]
+	mov	r4, #'\n'
+	str	r4, [r5]
 
 	pop	{r4-r7, lr}
 	movs	pc, lr			@ Return to the kernel
@@ -307,6 +339,22 @@ ENDPROC(psci_get_cpu_stack_top)
 @ arch/arm/lib/bootm.c:boot_jump_linux() must remain unchanged across
 @ this function.
 ENTRY(psci_stack_setup)
+	movw	r6, #(SUNXI_UART0_BASE & 0xffff)
+	movt	r6, #((SUNXI_UART0_BASE >> 16) & 0xffff)
+	mov	r7, #'s'
+	str	r7, [r6]
+	mov	r7, #'t'
+	str	r7, [r6]
+	mov	r7, #'a'
+	str	r7, [r6]
+	mov	r7, #'c'
+	str	r7, [r6]
+	mov	r7, #'k'
+	str	r7, [r6]
+	mov	r7, #'\r'
+	str	r7, [r6]
+	mov	r7, #'\n'
+	str	r7, [r6]
 	mov	r6, lr
 	mov	r7, r0
 	bl	psci_get_cpu_id		@ CPU ID => r0
