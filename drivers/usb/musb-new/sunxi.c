@@ -318,7 +318,7 @@ static int musb_usb_probe(struct udevice *dev)
 
 #ifdef CONFIG_USB_MUSB_HOST
 	host->host = musb_init_controller(&musb_plat, NULL,
-					  (void *)SUNXI_USB0_BASE);
+					 dev_read_addr_ptr(dev));
 	if (!host->host)
 		return -EIO;
 
@@ -326,7 +326,7 @@ static int musb_usb_probe(struct udevice *dev)
 	if (!ret)
 		printf("Allwinner mUSB OTG (Host)\n");
 #else
-	ret = musb_register(&musb_plat, NULL, (void *)SUNXI_USB0_BASE);
+	ret = musb_register(&musb_plat, NULL, dev_read_addr_ptr(dev));
 	if (!ret)
 		printf("Allwinner mUSB OTG (Peripheral)\n");
 #endif
