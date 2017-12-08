@@ -293,7 +293,11 @@ static const struct musb_platform_ops sunxi_musb_ops = {
 static struct musb_hdrc_config musb_config = {
 	.multipoint     = 1,
 	.dyn_fifo       = 1,
+#if defined(CONFIG_MACH_SUNXI_H3_H5)
+	.num_eps        = 5,
+#else
 	.num_eps        = 6,
+#endif
 	.ram_bits       = 11,
 };
 
