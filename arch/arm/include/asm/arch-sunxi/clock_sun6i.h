@@ -285,11 +285,13 @@ struct sunxi_ccm_reg {
 #define AHB_GATE_OFFSET_USB_EHCI1	27
 #define AHB_GATE_OFFSET_USB_EHCI0	26
 #endif
-#ifndef CONFIG_MACH_SUN8I_R40
-#define AHB_GATE_OFFSET_USB0		24
-#else
+#if defined(CONFIG_MACH_SUNXI_H3_H5) || defined(CONFIG_MACH_SUN50I)
+#define AHB_GATE_OFFSET_USB0		23
+#elif defined(CONFIG_MACH_SUN8I_R40)
 #define AHB_GATE_OFFSET_USB0		25
 #define AHB_GATE_OFFSET_SATA		24
+#else
+#define AHB_GATE_OFFSET_USB0		24
 #endif
 #define AHB_GATE_OFFSET_MCTL		14
 #define AHB_GATE_OFFSET_GMAC		17
