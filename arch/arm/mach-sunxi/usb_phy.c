@@ -239,7 +239,12 @@ void sunxi_usb_phy_init(int index)
 
 	sunxi_usb_phy_config(phy);
 
-	if (phy->id != 0)
+	/*
+	 * Later SoCs such as the H3, H5, A64 have proper hosts for OTG.
+	 * As such the passby settings need to be set for them as well.
+	 */
+	if (phy->id != 0 || IS_ENABLED(CONFIG_MACH_SUNXI_H3_H5) ||
+	    IS_ENABLED(CONFIG_MACH_SUN50I))
 		sunxi_usb_phy_passby(phy, SUNXI_USB_PASSBY_EN);
 
 #ifdef CONFIG_MACH_SUN8I_A83T
