@@ -51,11 +51,18 @@ static int ohci_usb_probe(struct udevice *dev)
 	extra_ahb_gate_mask = 1 << AHB_GATE_OFFSET_USB_EHCI0;
 #endif
 	priv->usb_gate_mask = CCM_USB_CTRL_OHCI0_CLK;
+#if defined(CONFIG_MACH_SUNXI_H3_H5) || defined(CONFIG_MACH_SUN50I)
+	/* Newer chips have a EHCI/OHCI host pair for OTG host mode */
+	priv->phy_index = ((uintptr_t)regs - (SUNXI_USB0_BASE + 0x400)) / BASE_DIST;
+#else
 	priv->phy_index = ((uintptr_t)regs - (SUNXI_USB1_BASE + 0x400)) / BASE_DIST;
+#endif
 	priv->ahb_gate_mask <<= priv->phy_index * AHB_CLK_DIST;
 	extra_ahb_gate_mask <<= priv->phy_index * AHB_CLK_DIST;
 	priv->usb_gate_mask <<= priv->phy_index;
-	priv->phy_index++; /* Non otg phys start at 1 */
+#if !defined(CONFIG_MACH_SUNXI_H3_H5) && !defined(CONFIG_MACH_SUN50I)
+	priv->phy_index++; /* older chips do not have OHCI with OTG */
+#endif
 
 	setbits_le32(&ccm->ahb_gate0,
 		     priv->ahb_gate_mask | extra_ahb_gate_mask);
